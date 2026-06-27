@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build intermediate (dist/icons is the runtime copy)
+icons/
+
+# Private keys and packaged extensions — never commit
+*.pem
+*.crx
+*.rar
+*.zip
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor
+.cursor/
+
+#markdown
+GITHUB.md

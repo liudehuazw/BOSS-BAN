@@ -1,0 +1,20 @@
+{
+  "name": "boss-ban",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BOSS Zhipin one-click company blacklist Chrome extension",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "dev": "vite build --watch",
+    "build": "npm run icons && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "sharp": "^0.33.5",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-static-copy": "^2.2.0"
+  }
+}
+

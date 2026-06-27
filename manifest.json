@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS直聘一键拉黑",
+  "version": "1.0.0",
+  "description": "在 BOSS 直聘公司简介页一键将当前公司加入黑名单",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhipin.com/gongsi/*",
+        "https://www.zhipin.com/gongsir/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "https://www.zhipin.com/*"
+  ]
+}
