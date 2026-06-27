@@ -115,6 +115,8 @@ npm run dev
 ## 页面展示
 
 <img width="2560" height="1239" alt="bossban" src="https://github.com/user-attachments/assets/614cad19-beb5-49cc-8e8e-6f5d7dfda305" />
+<img width="2560" height="1239" alt="ScreenShot_2026-06-27_172849_127" src="https://github.com/user-attachments/assets/5bd44992-2e3f-490a-b7af-c02b77fe00e0" />
+
 
 ## 咨询方式
 
