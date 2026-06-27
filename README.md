@@ -114,9 +114,13 @@ npm run dev
 
 ## 页面展示
 
+<img width="2560" height="1239" alt="bossban" src="https://github.com/user-attachments/assets/614cad19-beb5-49cc-8e8e-6f5d7dfda305" />
+
 ## 咨询方式
 
-如不会使用改项目，需要简单指导，可添加我的wechat
+如不会使用改项目，可添加我的wechat，本德华义务指导
+
+<img width="649" height="657" alt="add my wechat" src="https://github.com/user-attachments/assets/7278bacc-950e-4ff6-96c7-88031d27c23a" />
 
 ## 版本记录
 
