@@ -29,14 +29,16 @@ export interface AddResponseData {
   result: boolean
 }
 
+export interface UnblockResponseData {
+  encryptKey?: string
+}
+
 export interface BlacklistResult {
   success: boolean
   message: string
   companyName?: string
   alreadyBlocked?: boolean
+  notBlocked?: boolean
 }
 
-export interface ParsedCompanyInfo {
-  name: string
-  encryptComId: string | null
-}
+export type { ParsedCompanyInfo } from './company-info'

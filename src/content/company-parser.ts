@@ -1,11 +1,23 @@
-import type { ParsedCompanyInfo } from '../types/zhipin-api'
-
-const COMPANY_PAGE_PATTERN = /\/gongsi(?:r)?\/([^/?#]+)/
+import type { ParsedCompanyInfo } from '../types/company-info'
 
 interface BrandInfoWindow extends Window {
   _brandInfo?: {
     brand_id?: string
   }
+}
+
+function cleanCompanyId(raw: string): string {
+  return decodeURIComponent(raw).replace(/\.html$/, '')
+}
+
+function parseCompanyIdFromPath(pathname: string): string | null {
+  const jobsMatch = pathname.match(/\/gongsi(?:r)?\/job\/([^/?#]+)/)
+  if (jobsMatch?.[1]) return cleanCompanyId(jobsMatch[1])
+
+  const introMatch = pathname.match(/\/gongsi(?:r)?\/([^/?#]+)/)
+  if (!introMatch?.[1] || introMatch[1] === 'job') return null
+
+  return cleanCompanyId(introMatch[1])
 }
 
 function getTextContent(element: Element | null): string {
@@ -43,12 +55,27 @@ function extractFromHeading(): string {
   return clone.textContent?.trim() ?? ''
 }
 
-function extractEncryptComIdFromUrl(): string | null {
-  const match = window.location.pathname.match(COMPANY_PAGE_PATTERN)
-  if (!match?.[1]) return null
+function extractFromTitle(): string {
+  const match = document.title.match(/「(.+?)招聘」/)
+  return match?.[1]?.trim() ?? ''
+}
 
-  const id = decodeURIComponent(match[1]).replace(/\.html$/, '')
-  return id || null
+function extractFromLogoAlt(): string {
+  const logo = document.querySelector('.info-primary img[alt]')
+  const alt = logo?.getAttribute('alt') ?? ''
+  return alt.replace(/LOGO$/i, '').trim()
+}
+
+function buildSearchNames(): string[] {
+  const candidates = [
+    extractFromBusinessDetail(),
+    extractFromCompanyFullName(),
+    extractFromHeading(),
+    extractFromTitle(),
+    extractFromLogoAlt(),
+  ]
+
+  return [...new Set(candidates.filter(Boolean))]
 }
 
 function extractEncryptComIdFromPage(): string | null {
@@ -56,25 +83,26 @@ function extractEncryptComIdFromPage(): string | null {
   const brandId = brandWindow._brandInfo?.brand_id?.trim()
   if (brandId) return brandId
 
-  return extractEncryptComIdFromUrl()
+  return parseCompanyIdFromPath(window.location.pathname)
 }
 
 export function isCompanyProfilePage(): boolean {
-  return COMPANY_PAGE_PATTERN.test(window.location.pathname)
+  return parseCompanyIdFromPath(window.location.pathname) !== null
+}
+
+export function isCompanyJobsPage(): boolean {
+  return /\/gongsi(?:r)?\/job\//.test(window.location.pathname)
 }
 
 export function parseCompanyInfo(): ParsedCompanyInfo | null {
   if (!isCompanyProfilePage()) return null
 
-  const name =
-    extractFromBusinessDetail() ||
-    extractFromCompanyFullName() ||
-    extractFromHeading()
-
-  if (!name) return null
+  const searchNames = buildSearchNames()
+  if (searchNames.length === 0) return null
 
   return {
-    name,
+    name: searchNames[0],
+    searchNames,
     encryptComId: extractEncryptComIdFromPage(),
   }
 }

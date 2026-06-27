@@ -4,12 +4,32 @@ const ANCHOR_SELECTORS = [
   'h1.name .icon-focus',
   '.info-primary .info .icon-focus',
   '.info-primary .icon-focus[ka="gongsi_job_focus_click"]',
+  'h1.name',
+  '.info-primary .info .name',
+  '.info-primary .name',
 ]
 
-export interface FloatButtonController {
+const BASE_BUTTON_STYLE = [
+  'display: inline-flex',
+  'align-items: center',
+  'justify-content: center',
+  'box-sizing: border-box',
+  'height: 32px',
+  'padding: 0 16px',
+  'border: none',
+  'border-radius: 16px',
+  'font-size: 14px',
+  'font-weight: 500',
+  'font-family: inherit',
+  'white-space: nowrap',
+  'transition: opacity 0.15s ease, background-color 0.15s ease',
+].join(';')
+
+export interface CompanyButtonController {
   updateCompanyName: (companyName: string) => void
-  setLoading: (isLoading: boolean) => void
   setBlocked: (isBlocked: boolean) => void
+  setBlockLoading: (isLoading: boolean) => void
+  setUnblockLoading: (isLoading: boolean) => void
   destroy: () => void
 }
 
@@ -22,14 +42,17 @@ export function findBlockButtonAnchor(): Element | null {
   return null
 }
 
-export function mountFloatButton({
-  onClick,
+export function mountCompanyButtons({
+  onBlockClick,
+  onUnblockClick,
   anchor,
 }: {
-  onClick: () => Promise<void>
+  onBlockClick: () => Promise<void>
+  onUnblockClick: () => Promise<void>
   anchor: Element
-}): FloatButtonController {
-  let isLoading = false
+}): CompanyButtonController {
+  let isBlockLoading = false
+  let isUnblockLoading = false
   let isBlocked = false
   let currentCompanyName = ''
 
@@ -38,108 +61,129 @@ export function mountFloatButton({
   root.style.cssText = [
     'display: inline-flex',
     'align-items: center',
+    'gap: 8px',
     'vertical-align: middle',
     'margin-left: 12px',
     'line-height: 1',
   ].join(';')
 
-  const button = document.createElement('button')
-  button.type = 'button'
-  button.style.cssText = [
-    'display: inline-flex',
-    'align-items: center',
-    'justify-content: center',
-    'box-sizing: border-box',
-    'height: 32px',
-    'padding: 0 16px',
-    'border: none',
-    'border-radius: 16px',
-    'background: #e74c3c',
-    'color: #ffffff',
-    'font-size: 14px',
-    'font-weight: 500',
-    'font-family: inherit',
-    'cursor: pointer',
-    'white-space: nowrap',
-    'transition: opacity 0.15s ease, background-color 0.15s ease',
-  ].join(';')
+  const blockButton = document.createElement('button')
+  blockButton.type = 'button'
+  blockButton.style.cssText = `${BASE_BUTTON_STYLE}; cursor: pointer; color: #ffffff;`
 
-  function renderLabel(): void {
-    if (isLoading) {
-      button.textContent = '拉黑中...'
+  const unblockButton = document.createElement('button')
+  unblockButton.type = 'button'
+  unblockButton.style.cssText = `${BASE_BUTTON_STYLE}; cursor: not-allowed; color: #ffffff;`
+
+  function renderBlockLabel(): void {
+    if (isBlockLoading) {
+      blockButton.textContent = '拉黑中...'
       return
     }
 
     if (isBlocked) {
-      button.textContent = '已拉黑'
+      blockButton.textContent = '已拉黑'
       return
     }
 
-    button.textContent = '拉黑该公司'
+    blockButton.textContent = '拉黑该公司'
   }
 
-  function setDisabledState(): void {
-    button.disabled = isLoading || isBlocked || !currentCompanyName
-    button.style.opacity = button.disabled ? '0.65' : '1'
-    button.style.cursor = button.disabled ? 'not-allowed' : 'pointer'
-
-    if (isBlocked) {
-      button.style.background = '#94a3b8'
+  function renderUnblockLabel(): void {
+    if (isUnblockLoading) {
+      unblockButton.textContent = '移出中...'
       return
     }
 
-    button.style.background = button.disabled ? '#c0392b' : '#e74c3c'
+    unblockButton.textContent = '移出黑名单'
   }
 
-  button.addEventListener('mouseenter', () => {
-    if (!button.disabled && !isBlocked) button.style.background = '#cf3f31'
+  function setBlockDisabledState(): void {
+    blockButton.disabled = isBlockLoading || isUnblockLoading || isBlocked || !currentCompanyName
+    blockButton.style.opacity = blockButton.disabled ? '0.65' : '1'
+    blockButton.style.cursor = blockButton.disabled ? 'not-allowed' : 'pointer'
+    blockButton.style.background = isBlocked ? '#94a3b8' : blockButton.disabled ? '#c0392b' : '#e74c3c'
+  }
+
+  function setUnblockDisabledState(): void {
+    unblockButton.disabled =
+      isBlockLoading || isUnblockLoading || !isBlocked || !currentCompanyName
+    unblockButton.style.opacity = unblockButton.disabled ? '0.65' : '1'
+    unblockButton.style.cursor = unblockButton.disabled ? 'not-allowed' : 'pointer'
+    unblockButton.style.background = unblockButton.disabled ? '#94a3b8' : '#2563eb'
+  }
+
+  function renderAll(): void {
+    renderBlockLabel()
+    renderUnblockLabel()
+    setBlockDisabledState()
+    setUnblockDisabledState()
+  }
+
+  blockButton.addEventListener('mouseenter', () => {
+    if (!blockButton.disabled && !isBlocked) blockButton.style.background = '#cf3f31'
   })
 
-  button.addEventListener('mouseleave', () => {
-    if (isBlocked) {
-      button.style.background = '#94a3b8'
-      return
-    }
-
-    if (!button.disabled) button.style.background = '#e74c3c'
+  blockButton.addEventListener('mouseleave', () => {
+    setBlockDisabledState()
   })
 
-  button.addEventListener('click', async () => {
-    if (isLoading || isBlocked || !currentCompanyName) return
+  unblockButton.addEventListener('mouseenter', () => {
+    if (!unblockButton.disabled) unblockButton.style.background = '#1d4ed8'
+  })
 
-    isLoading = true
-    renderLabel()
-    setDisabledState()
+  unblockButton.addEventListener('mouseleave', () => {
+    setUnblockDisabledState()
+  })
+
+  blockButton.addEventListener('click', async () => {
+    if (isBlockLoading || isUnblockLoading || isBlocked || !currentCompanyName) return
+
+    isBlockLoading = true
+    renderAll()
 
     try {
-      await onClick()
+      await onBlockClick()
     } finally {
-      isLoading = false
-      renderLabel()
-      setDisabledState()
+      isBlockLoading = false
+      renderAll()
     }
   })
 
-  root.appendChild(button)
+  unblockButton.addEventListener('click', async () => {
+    if (isBlockLoading || isUnblockLoading || !isBlocked || !currentCompanyName) return
+
+    isUnblockLoading = true
+    renderAll()
+
+    try {
+      await onUnblockClick()
+    } finally {
+      isUnblockLoading = false
+      renderAll()
+    }
+  })
+
+  root.append(blockButton, unblockButton)
   anchor.insertAdjacentElement('afterend', root)
-  renderLabel()
-  setDisabledState()
+  renderAll()
 
   return {
     updateCompanyName(companyName: string) {
       currentCompanyName = companyName
-      renderLabel()
-      setDisabledState()
-    },
-    setLoading(loading: boolean) {
-      isLoading = loading
-      renderLabel()
-      setDisabledState()
+      renderAll()
     },
     setBlocked(blocked: boolean) {
       isBlocked = blocked
-      renderLabel()
-      setDisabledState()
+      renderAll()
+    },
+    setBlockLoading(loading: boolean) {
+      isBlockLoading = loading
+      renderAll()
+    },
+    setUnblockLoading(loading: boolean) {
+      isUnblockLoading = loading
+      renderAll()
     },
     destroy() {
       root.remove()
@@ -149,4 +193,8 @@ export function mountFloatButton({
 
 export function removeExistingFloatButton(): void {
   document.getElementById(BUTTON_ROOT_ID)?.remove()
+}
+
+export function isCompanyButtonMounted(): boolean {
+  return Boolean(document.getElementById(BUTTON_ROOT_ID))
 }

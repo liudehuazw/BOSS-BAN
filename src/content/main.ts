@@ -1,33 +1,45 @@
-import { addCompanyToBlacklist, checkCompanyBlacklistStatus } from './blacklist-api'
+import {
+  addCompanyToBlacklist,
+  checkCompanyBlacklistStatus,
+  removeCompanyFromBlacklist,
+} from './blacklist-api'
 import { isCompanyProfilePage, parseCompanyInfo } from './company-parser'
 import {
   findBlockButtonAnchor,
-  mountFloatButton,
+  isCompanyButtonMounted,
+  mountCompanyButtons,
   removeExistingFloatButton,
-  type FloatButtonController,
+  type CompanyButtonController,
 } from './float-button'
 import { showToast } from './toast'
 
 const ROOT_ATTR = 'data-boss-ban-mounted'
-let buttonController: FloatButtonController | null = null
+let buttonController: CompanyButtonController | null = null
 let currentPageKey = ''
+let isMounting = false
+let remountTimer: number | null = null
 
 function getPageKey(): string {
   return `${window.location.pathname}${window.location.search}`
 }
 
-async function handleBlacklistClick(): Promise<void> {
+function getCompanyInfoOrToast() {
   const companyInfo = parseCompanyInfo()
   if (!companyInfo?.name) {
     showToast({ type: 'error', message: '未能识别当前公司名称，请刷新页面后重试' })
-    return
+    return null
   }
 
-  const result = await addCompanyToBlacklist(companyInfo.name)
+  return companyInfo
+}
 
-  if (result.success) {
-    buttonController?.setBlocked(true)
-  } else if (result.alreadyBlocked) {
+async function handleBlacklistClick(): Promise<void> {
+  const companyInfo = getCompanyInfoOrToast()
+  if (!companyInfo) return
+
+  const result = await addCompanyToBlacklist(companyInfo)
+
+  if (result.success || result.alreadyBlocked) {
     buttonController?.setBlocked(true)
   }
 
@@ -37,12 +49,30 @@ async function handleBlacklistClick(): Promise<void> {
   })
 }
 
+async function handleUnblockClick(): Promise<void> {
+  const companyInfo = getCompanyInfoOrToast()
+  if (!companyInfo) return
+
+  const result = await removeCompanyFromBlacklist(companyInfo)
+
+  if (result.success) {
+    buttonController?.setBlocked(false)
+  } else if (result.notBlocked) {
+    buttonController?.setBlocked(false)
+  }
+
+  showToast({
+    type: result.success ? 'success' : result.notBlocked ? 'warning' : 'error',
+    message: result.message,
+  })
+}
+
 interface MountReadyState {
   companyName: string
   anchor: Element
 }
 
-function waitForMountReady(maxAttempts = 20, intervalMs = 300): Promise<MountReadyState | null> {
+function waitForMountReady(maxAttempts = 40, intervalMs = 300): Promise<MountReadyState | null> {
   return new Promise((resolve) => {
     let attempts = 0
 
@@ -68,6 +98,22 @@ function waitForMountReady(maxAttempts = 20, intervalMs = 300): Promise<MountRea
   })
 }
 
+async function applyBlockedState(companyName: string, pageKey: string): Promise<void> {
+  const companyInfo = parseCompanyInfo()
+  if (!companyInfo || getPageKey() !== pageKey || !buttonController) return
+
+  const blacklistStatus = await checkCompanyBlacklistStatus(companyInfo)
+  if (getPageKey() !== pageKey || !buttonController) return
+
+  if (blacklistStatus.alreadyBlocked) {
+    buttonController.setBlocked(true)
+  } else {
+    buttonController.setBlocked(false)
+  }
+
+  buttonController.updateCompanyName(blacklistStatus.companyName || companyName)
+}
+
 async function mountForCurrentPage(): Promise<void> {
   if (!isCompanyProfilePage()) {
     teardown()
@@ -75,37 +121,62 @@ async function mountForCurrentPage(): Promise<void> {
   }
 
   const pageKey = getPageKey()
-  if (pageKey === currentPageKey && buttonController) return
+  if (pageKey === currentPageKey && buttonController && isCompanyButtonMounted()) return
 
-  currentPageKey = pageKey
-  buttonController?.destroy()
-  buttonController = null
-  removeExistingFloatButton()
+  if (isMounting) return
+  isMounting = true
 
-  document.documentElement.setAttribute(ROOT_ATTR, 'true')
+  try {
+    if (pageKey !== currentPageKey) {
+      buttonController?.destroy()
+      buttonController = null
+      removeExistingFloatButton()
+      currentPageKey = pageKey
+    } else if (!isCompanyButtonMounted()) {
+      buttonController = null
+      removeExistingFloatButton()
+    }
 
-  const mountReady = await waitForMountReady()
-  if (!mountReady) {
-    document.documentElement.removeAttribute(ROOT_ATTR)
-    currentPageKey = ''
-    showToast({ type: 'error', message: '未能加载拉黑按钮，请刷新页面后重试' })
-    return
+    document.documentElement.setAttribute(ROOT_ATTR, 'true')
+
+    const mountReady = await waitForMountReady()
+    if (!mountReady) {
+      if (!isCompanyButtonMounted()) {
+        document.documentElement.removeAttribute(ROOT_ATTR)
+        currentPageKey = ''
+      }
+      return
+    }
+
+    if (getPageKey() !== pageKey) return
+
+    const companyInfo = parseCompanyInfo()
+    if (!companyInfo) return
+
+    if (!buttonController || !isCompanyButtonMounted()) {
+      buttonController = mountCompanyButtons({
+        onBlockClick: handleBlacklistClick,
+        onUnblockClick: handleUnblockClick,
+        anchor: mountReady.anchor,
+      })
+      buttonController.updateCompanyName(mountReady.companyName)
+    }
+
+    await applyBlockedState(mountReady.companyName, pageKey)
+  } finally {
+    isMounting = false
+  }
+}
+
+function scheduleRemount(): void {
+  if (remountTimer !== null) {
+    window.clearTimeout(remountTimer)
   }
 
-  if (getPageKey() !== pageKey) return
-
-  buttonController = mountFloatButton({
-    onClick: handleBlacklistClick,
-    anchor: mountReady.anchor,
-  })
-  buttonController.updateCompanyName(mountReady.companyName)
-
-  const blacklistStatus = await checkCompanyBlacklistStatus(mountReady.companyName)
-  if (getPageKey() !== pageKey) return
-
-  if (blacklistStatus.alreadyBlocked) {
-    buttonController.setBlocked(true)
-  }
+  remountTimer = window.setTimeout(() => {
+    remountTimer = null
+    void mountForCurrentPage()
+  }, 300)
 }
 
 function teardown(): void {
@@ -134,14 +205,31 @@ function observeUrlChanges(): void {
   })
 
   window.addEventListener('boss-ban:location-change', () => {
-    void mountForCurrentPage()
+    scheduleRemount()
+  })
+}
+
+function observeDomChanges(): void {
+  const observer = new MutationObserver(() => {
+    if (!isCompanyProfilePage()) {
+      if (isCompanyButtonMounted()) teardown()
+      return
+    }
+
+    if (!isCompanyButtonMounted()) {
+      scheduleRemount()
+    }
+  })
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
   })
 }
 
 function bootstrap(): void {
-  if (document.documentElement.hasAttribute(ROOT_ATTR)) return
-
   observeUrlChanges()
+  observeDomChanges()
   void mountForCurrentPage()
 }
 
