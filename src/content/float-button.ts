@@ -9,6 +9,7 @@ const ANCHOR_SELECTORS = [
 export interface FloatButtonController {
   updateCompanyName: (companyName: string) => void
   setLoading: (isLoading: boolean) => void
+  setBlocked: (isBlocked: boolean) => void
   destroy: () => void
 }
 
@@ -29,6 +30,7 @@ export function mountFloatButton({
   anchor: Element
 }): FloatButtonController {
   let isLoading = false
+  let isBlocked = false
   let currentCompanyName = ''
 
   const root = document.createElement('span')
@@ -68,26 +70,42 @@ export function mountFloatButton({
       return
     }
 
+    if (isBlocked) {
+      button.textContent = '已拉黑'
+      return
+    }
+
     button.textContent = '拉黑该公司'
   }
 
   function setDisabledState(): void {
-    button.disabled = isLoading || !currentCompanyName
+    button.disabled = isLoading || isBlocked || !currentCompanyName
     button.style.opacity = button.disabled ? '0.65' : '1'
     button.style.cursor = button.disabled ? 'not-allowed' : 'pointer'
+
+    if (isBlocked) {
+      button.style.background = '#94a3b8'
+      return
+    }
+
     button.style.background = button.disabled ? '#c0392b' : '#e74c3c'
   }
 
   button.addEventListener('mouseenter', () => {
-    if (!button.disabled) button.style.background = '#cf3f31'
+    if (!button.disabled && !isBlocked) button.style.background = '#cf3f31'
   })
 
   button.addEventListener('mouseleave', () => {
+    if (isBlocked) {
+      button.style.background = '#94a3b8'
+      return
+    }
+
     if (!button.disabled) button.style.background = '#e74c3c'
   })
 
   button.addEventListener('click', async () => {
-    if (isLoading || !currentCompanyName) return
+    if (isLoading || isBlocked || !currentCompanyName) return
 
     isLoading = true
     renderLabel()
@@ -115,6 +133,11 @@ export function mountFloatButton({
     },
     setLoading(loading: boolean) {
       isLoading = loading
+      renderLabel()
+      setDisabledState()
+    },
+    setBlocked(blocked: boolean) {
+      isBlocked = blocked
       renderLabel()
       setDisabledState()
     },

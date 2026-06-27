@@ -1,4 +1,4 @@
-import { addCompanyToBlacklist } from './blacklist-api'
+import { addCompanyToBlacklist, checkCompanyBlacklistStatus } from './blacklist-api'
 import { isCompanyProfilePage, parseCompanyInfo } from './company-parser'
 import {
   findBlockButtonAnchor,
@@ -24,8 +24,15 @@ async function handleBlacklistClick(): Promise<void> {
   }
 
   const result = await addCompanyToBlacklist(companyInfo.name)
+
+  if (result.success) {
+    buttonController?.setBlocked(true)
+  } else if (result.alreadyBlocked) {
+    buttonController?.setBlocked(true)
+  }
+
   showToast({
-    type: result.success ? 'success' : 'error',
+    type: result.success ? 'success' : result.alreadyBlocked ? 'warning' : 'error',
     message: result.message,
   })
 }
@@ -92,6 +99,13 @@ async function mountForCurrentPage(): Promise<void> {
     anchor: mountReady.anchor,
   })
   buttonController.updateCompanyName(mountReady.companyName)
+
+  const blacklistStatus = await checkCompanyBlacklistStatus(mountReady.companyName)
+  if (getPageKey() !== pageKey) return
+
+  if (blacklistStatus.alreadyBlocked) {
+    buttonController.setBlocked(true)
+  }
 }
 
 function teardown(): void {

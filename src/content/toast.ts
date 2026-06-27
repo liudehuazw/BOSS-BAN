@@ -2,7 +2,7 @@ const TOAST_ROOT_ID = 'boss-ban-toast-root'
 const TOAST_DURATION_MS = 3000
 
 interface ToastOptions {
-  type: 'success' | 'error'
+  type: 'success' | 'error' | 'warning'
   message: string
 }
 
@@ -29,11 +29,17 @@ function ensureToastRoot(): HTMLElement {
   return root
 }
 
+function getToastBackground(type: ToastOptions['type']): string {
+  if (type === 'success') return '#16a34a'
+  if (type === 'warning') return '#d97706'
+  return '#dc2626'
+}
+
 export function showToast({ type, message }: ToastOptions): void {
   const root = ensureToastRoot()
-  const toast = document.createElement('div')
+  root.replaceChildren()
 
-  const backgroundColor = type === 'success' ? '#16a34a' : '#dc2626'
+  const toast = document.createElement('div')
   toast.textContent = message
   toast.style.cssText = [
     'min-width: 280px',
@@ -44,7 +50,7 @@ export function showToast({ type, message }: ToastOptions): void {
     'font-size: 14px',
     'line-height: 1.5',
     'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18)',
-    `background-color: ${backgroundColor}`,
+    `background-color: ${getToastBackground(type)}`,
     'opacity: 0',
     'transform: translateY(-8px)',
     'transition: opacity 0.2s ease, transform 0.2s ease',

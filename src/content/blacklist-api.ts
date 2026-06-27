@@ -1,6 +1,7 @@
 import type {
   AddResponseData,
   BlacklistResult,
+  SuggestCompanyItem,
   SuggestResponseData,
   ZhipinApiResponse,
 } from '../types/zhipin-api'
@@ -62,6 +63,45 @@ function resolveLoginError(code: number, message: string): string | null {
   return null
 }
 
+function isCompanyAlreadyBlocked(item: SuggestCompanyItem): boolean {
+  return item.mark === 1
+}
+
+function buildAlreadyBlockedResult(companyName: string): BlacklistResult {
+  return {
+    success: false,
+    message: '该公司已在黑名单中',
+    companyName,
+    alreadyBlocked: true,
+  }
+}
+
+export async function checkCompanyBlacklistStatus(
+  companyName: string,
+): Promise<Pick<BlacklistResult, 'alreadyBlocked' | 'companyName'>> {
+  try {
+    const suggestUrl = `${SUGGEST_URL}?query=${encodeURIComponent(companyName)}`
+    const suggestResponse = await fetchJson<SuggestResponseData>(suggestUrl)
+
+    if (suggestResponse.code !== 0 || suggestResponse.message !== 'Success') {
+      return { alreadyBlocked: false }
+    }
+
+    const suggestList = suggestResponse.zpData?.suggestList ?? []
+    if (suggestList.length === 0) return { alreadyBlocked: false }
+
+    const matchedItem =
+      suggestList.find((item) => item.company.name === companyName) ?? suggestList[0]
+
+    return {
+      alreadyBlocked: isCompanyAlreadyBlocked(matchedItem),
+      companyName: matchedItem.company.name || companyName,
+    }
+  } catch {
+    return { alreadyBlocked: false }
+  }
+}
+
 function resolveDuplicateError(message: string): string | null {
   if (/已屏蔽|已在|重复|exist/i.test(message)) {
     return '该公司已在黑名单中'
@@ -99,6 +139,11 @@ export async function addCompanyToBlacklist(companyName: string): Promise<Blackl
       suggestList.find((item) => item.company.name === companyName) ?? suggestList[0]
     const encryptComId = matchedItem.encryptComId
     const resolvedName = matchedItem.company.name || companyName
+
+    if (isCompanyAlreadyBlocked(matchedItem)) {
+      return buildAlreadyBlockedResult(resolvedName)
+    }
+
     const totalCount = suggestResponse.zpData.totalCount ?? suggestList.length
 
     const addParams = new URLSearchParams({
@@ -117,7 +162,12 @@ export async function addCompanyToBlacklist(companyName: string): Promise<Blackl
 
     const duplicateError = resolveDuplicateError(addResponse.message)
     if (duplicateError) {
-      return { success: false, message: duplicateError, companyName: resolvedName }
+      return {
+        success: false,
+        message: duplicateError,
+        companyName: resolvedName,
+        alreadyBlocked: true,
+      }
     }
 
     if (addResponse.code !== 0 || addResponse.message !== 'Success') {

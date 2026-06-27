@@ -33,6 +33,7 @@ export interface BlacklistResult {
   success: boolean
   message: string
   companyName?: string
+  alreadyBlocked?: boolean
 }
 
 export interface ParsedCompanyInfo {
